@@ -64,6 +64,95 @@ def copy_report_html() -> str:
     return ""
 
 
+def parse_junit_cases(path: Path) -> list[dict]:
+    """Extract every <testcase> from a JUnit XML file."""
+    if not path.exists():
+        return []
+    cases = []
+    root = ET.parse(path).getroot()
+    for case in root.iter("testcase"):
+        if case.find("failure") is not None:
+            status, detail_node = "FAILED", case.find("failure")
+        elif case.find("error") is not None:
+            status, detail_node = "ERROR", case.find("error")
+        elif case.find("skipped") is not None:
+            status, detail_node = "SKIPPED", case.find("skipped")
+        else:
+            status, detail_node = "PASSED", None
+        detail = ""
+        if detail_node is not None:
+            detail = (detail_node.get("message") or detail_node.text or "").strip()
+        cases.append({
+            "suite": case.get("classname", ""),
+            "name": case.get("name", ""),
+            "time": float(case.get("time", 0.0)),
+            "status": status,
+            "detail": detail,
+        })
+    return cases
+
+
+def generate_go_report(summary: dict, now: datetime) -> str:
+    """Write a detailed per-test Go report page and return its filename."""
+    cases = parse_junit_cases(REPORTS_DIR / "go-results.xml")
+    if not cases:
+        return ""
+
+    status_colour = {"PASSED": "var(--ok)", "FAILED": "var(--fail)", "ERROR": "var(--fail)", "SKIPPED": "#6c757d"}
+    rows = "\n".join(
+        "<tr>"
+        f"<td><code>{c['suite']}</code></td>"
+        f"<td>{c['name']}</td>"
+        f"<td>{c['time']:.3f}s</td>"
+        f"<td style='color:{status_colour[c['status']]};font-weight:700'>{c['status']}</td>"
+        f"<td>{c['detail']}</td>"
+        "</tr>"
+        for c in cases
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Go Test Report — Northwind Delivery</title>
+  <style>
+    :root {{ --ok: #28a745; --fail: #dc3545; --bg: #f4f6f8; --card: #ffffff; }}
+    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 2rem; color: #222; }}
+    h1 {{ margin-top: 0; }}
+    .summary {{ background: var(--card); border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.08); display: inline-block; margin-bottom: 1.5rem; }}
+    table {{ width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }}
+    th, td {{ padding: 0.55rem 0.9rem; text-align: left; border-bottom: 1px solid #e9ecef; }}
+    thead th {{ background: #e9ecef; }}
+    code {{ background: #f1f3f5; padding: 0.1rem 0.3rem; border-radius: 4px; }}
+    a {{ display: inline-block; margin-bottom: 1rem; }}
+  </style>
+</head>
+<body>
+  <a href="index.html">&larr; Back to dashboard</a>
+  <h1>Go Test Report — Northwind Delivery (Go comparison service)</h1>
+  <div class="summary">
+    <strong>{summary['tests']}</strong> tests &middot;
+    <strong style="color:var(--ok)">{summary['passed']} passed</strong> &middot;
+    <strong style="color:var(--fail)">{summary['failures'] + summary['errors']} failed</strong> &middot;
+    {summary['skipped']} skipped &middot; {summary['time']:.2f}s
+    &middot; generated {now.isoformat()}
+  </div>
+  <table>
+    <thead>
+      <tr><th>Package / Suite</th><th>Test</th><th>Duration</th><th>Result</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      {rows}
+    </tbody>
+  </table>
+</body>
+</html>"""
+
+    (DASHBOARD_DIR / "go-report.html").write_text(html, encoding="utf-8")
+    return "go-report.html"
+
+
 def load_history() -> list[dict]:
     if HISTORY_FILE.exists():
         try:
@@ -77,6 +166,10 @@ def append_history(history: list[dict], now: datetime, sha: str, run_number: str
                    trigger: str, language: str, summary: dict) -> None:
     if summary["status"] == "NO DATA":
         return
+    # Re-runs of the same workflow run replace their earlier entry instead of duplicating it.
+    history[:] = [e for e in history
+                  if not (e.get("run_number") == run_number and e.get("language") == language
+                          and e.get("push_id") == sha[:12])]
     history.append({
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S UTC"),
@@ -137,6 +230,9 @@ def build_dashboard() -> None:
     python_summary = summarise(parse_junit(REPORTS_DIR / "pytest-results.xml"))
     go_summary = summarise(parse_junit(REPORTS_DIR / "go-results.xml"))
 
+    now = datetime.now(timezone.utc)
+    go_report_file = generate_go_report(go_summary, now)
+
     combined_tests = python_summary["tests"] + go_summary["tests"]
     combined_passed = python_summary["passed"] + go_summary["passed"]
     combined_failed = (python_summary["failures"] + python_summary["errors"]
@@ -145,7 +241,6 @@ def build_dashboard() -> None:
     combined_time = python_summary["time"] + go_summary["time"]
     status = "PASSED" if combined_failed == 0 and combined_tests > 0 else "FAILED"
 
-    now = datetime.now(timezone.utc)
     sha = os.environ.get("GITHUB_SHA", "local")
     run_number = os.environ.get("GITHUB_RUN_NUMBER", "-")
     trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
@@ -244,6 +339,7 @@ def build_dashboard() -> None:
   </table>
 
   {f'<a href="{report_file}">View detailed pytest report</a>' if report_file else '<p>Detailed pytest report not available.</p>'}
+  {f'<a href="{go_report_file}" style="margin-left:1rem">View detailed Go test report</a>' if go_report_file else '<p>Detailed Go test report not available.</p>'}
 
   <footer>
     <p><small>Generated on {metadata["Timestamp (UTC)"]} by scripts/generate_dashboard.py</small></p>
