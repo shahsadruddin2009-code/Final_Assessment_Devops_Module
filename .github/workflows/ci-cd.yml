@@ -255,10 +255,10 @@ jobs:
 
       - name: Smoke test in kind
         run: |
-          kubectl port-forward service/northwind-delivery 8000:8000 &
+          kubectl port-forward service/northwind-delivery 8000:80 &
           sleep 5
-          curl -sf http://localhost:8000/health
-          curl -sf http://localhost:8000/deliveries
+          curl -sf --retry 5 --retry-delay 2 http://localhost:8000/health
+          curl -sf --retry 5 --retry-delay 2 http://localhost:8000/deliveries
 
   dashboard:
     name: Build Test Dashboard
