@@ -22,3 +22,13 @@ output "db_address" {
   description = "RDS PostgreSQL host address"
   value       = aws_db_instance.northwind.address
 }
+
+output "ecr_repository_url" {
+  description = "URL of the AWS ECR repository"
+  value       = aws_ecr_repository.northwind.repository_url
+}
+
+output "ecr_repository_arn" {
+  description = "ARN of the AWS ECR repository"
+  value       = aws_ecr_repository.northwind.arn
+}
