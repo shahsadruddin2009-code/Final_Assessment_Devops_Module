@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: northwind-delivery
-          image: ${IMAGE_TAG:-ghcr.io/shahsadruddin2009-code/northwind-delivery:latest}
+          image: ${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

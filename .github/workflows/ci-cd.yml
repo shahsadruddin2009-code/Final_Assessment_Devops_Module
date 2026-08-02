@@ -228,15 +228,14 @@ jobs:
 
       - name: Deploy to kind
         run: |
+          export IMAGE_TAG=northwind-delivery:${{ github.sha }}
+          envsubst < k8s/deployment.yaml | cat
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/postgres.yaml
           kubectl rollout status deployment/northwind-postgres --timeout=120s
-          kubectl wait --for=condition=ready pod -l app=northwind-postgres --timeout=60s
           envsubst < k8s/deployment.yaml | kubectl apply -f -
           kubectl apply -f k8s/service.yaml
           kubectl rollout status deployment/northwind-delivery --timeout=180s
-        env:
-          IMAGE_TAG: northwind-delivery:${{ github.sha }}
 
       - name: Debug kind deployment on failure
         if: failure()
