@@ -244,3 +244,14 @@ The toolchain connects as follows:
 * **LO7 (current practice):** GitHub Actions, GHCR, Terraform, Ansible Vault,
   Kubernetes probes, and the Go comparison service reflect current DevOps
   tooling.
+
+## Author
+
+**Shahzad Sadruddin**  
+Student ID: 2513806
+
+## License
+
+This project is provided for educational purposes only as part of the CSO7024 Final Assessment. Unauthorized distribution, reproduction, or use of this material outside of the educational context is prohibited.
+
+**Educational Purpose Only** — All code, documentation, and artefacts in this repository are the intellectual property of the educational institution and may only be used by authorized students and faculty for coursework and assessment purposes.
