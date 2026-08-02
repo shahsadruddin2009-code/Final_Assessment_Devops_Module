@@ -55,11 +55,22 @@ def summarise(results: dict) -> dict:
     return {**results, "passed": passed, "status": status}
 
 
+BACK_LINK = (
+    '<a href="index.html" style="display:inline-block;margin:0.75rem 0;'
+    'font-family:system-ui,sans-serif;font-size:1rem;text-decoration:none;'
+    'background:#0d6efd;color:#fff;padding:0.4rem 0.9rem;border-radius:6px">'
+    '&larr; Back to dashboard</a>'
+)
+
+
 def copy_report_html() -> str:
-    """Copy the HTML report into the dashboard folder and return its filename."""
+    """Copy the HTML report into the dashboard folder, adding a back link."""
     source = REPORTS_DIR / "pytest-report.html"
     if source.exists():
-        shutil.copy(source, DASHBOARD_DIR / "pytest-report.html")
+        html = source.read_text(encoding="utf-8")
+        if "Back to dashboard" not in html:
+            html = html.replace("<body>", f"<body>\n{BACK_LINK}", 1)
+        (DASHBOARD_DIR / "pytest-report.html").write_text(html, encoding="utf-8")
         return "pytest-report.html"
     return ""
 
@@ -129,7 +140,7 @@ def generate_go_report(summary: dict, now: datetime) -> str:
   </style>
 </head>
 <body>
-  <a href="index.html">&larr; Back to dashboard</a>
+  {BACK_LINK}
   <h1>Go Test Report — Northwind Delivery (Go comparison service)</h1>
   <div class="summary">
     <strong>{summary['tests']}</strong> tests &middot;
