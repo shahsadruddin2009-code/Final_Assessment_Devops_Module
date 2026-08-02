@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Generate an HTML dashboard summarising the latest CI/CD run.
 
-Reads pytest XML/HTML reports from the reports/ directory and writes a
-self-contained dashboard to dashboard/index.html including:
+Reads the pytest JUnit XML (reports/pytest-results.xml) and the Go JUnit XML
+(reports/go-results.xml) and writes a self-contained dashboard to
+dashboard/index.html including:
   - timestamp and run metadata
-  - programming language versions
-  - test counts and status
+  - per-language test counts (Python and Go) and status
+  - a persistent run-history log (date, time, push id, result, language,
+    number of tests) accumulated across pipeline runs
   - embedded HTML report link
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import xml.etree.ElementTree as ET
@@ -19,25 +22,37 @@ from pathlib import Path
 
 REPORTS_DIR = Path("reports")
 DASHBOARD_DIR = Path("dashboard")
+HISTORY_DIR = Path(".dashboard-history")
+HISTORY_FILE = HISTORY_DIR / "history.json"
+MAX_HISTORY_ROWS = 50
 
 
-def parse_pytest_junit(path: Path) -> dict:
-    """Extract counts and suite metadata from a JUnit XML file."""
-    tree = ET.parse(path)
-    root = tree.getroot()
-    testsuites = root if root.tag == "testsuites" else None
-    suite = root if root.tag == "testsuite" else root.find("testsuite")
+def parse_junit(path: Path) -> dict:
+    """Sum counts across every <testsuite> in a JUnit XML file."""
+    totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "time": 0.0}
+    if not path.exists():
+        return totals
 
-    if testsuites is not None:
-        suite = testsuites.find("testsuite")
+    root = ET.parse(path).getroot()
+    suites = [root] if root.tag == "testsuite" else root.iter("testsuite")
+    for suite in suites:
+        totals["tests"] += int(suite.get("tests", 0))
+        totals["failures"] += int(suite.get("failures", 0))
+        totals["errors"] += int(suite.get("errors", 0))
+        totals["skipped"] += int(suite.get("skipped", 0))
+        totals["time"] += float(suite.get("time", 0.0))
+    return totals
 
-    return {
-        "tests": int(suite.get("tests", 0)) if suite is not None else 0,
-        "failures": int(suite.get("failures", 0)) if suite is not None else 0,
-        "errors": int(suite.get("errors", 0)) if suite is not None else 0,
-        "skipped": int(suite.get("skipped", 0)) if suite is not None else 0,
-        "time": float(suite.get("time", 0.0)) if suite is not None else 0.0,
-    }
+
+def summarise(results: dict) -> dict:
+    passed = results["tests"] - results["failures"] - results["errors"] - results["skipped"]
+    if results["tests"] == 0:
+        status = "NO DATA"
+    elif results["failures"] == 0 and results["errors"] == 0:
+        status = "PASSED"
+    else:
+        status = "FAILED"
+    return {**results, "passed": passed, "status": status}
 
 
 def copy_report_html() -> str:
@@ -49,26 +64,107 @@ def copy_report_html() -> str:
     return ""
 
 
+def load_history() -> list[dict]:
+    if HISTORY_FILE.exists():
+        try:
+            return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return []
+    return []
+
+
+def append_history(history: list[dict], now: datetime, sha: str, run_number: str,
+                   trigger: str, language: str, summary: dict) -> None:
+    if summary["status"] == "NO DATA":
+        return
+    history.append({
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S UTC"),
+        "push_id": sha[:12],
+        "run_number": run_number,
+        "trigger": trigger,
+        "language": language,
+        "tests": summary["tests"],
+        "passed": summary["passed"],
+        "failed": summary["failures"] + summary["errors"],
+        "result": summary["status"],
+    })
+
+
+def save_history(history: list[dict]) -> None:
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    HISTORY_FILE.write_text(json.dumps(history[-MAX_HISTORY_ROWS:], indent=2), encoding="utf-8")
+
+
+def language_card(title: str, summary: dict) -> str:
+    if summary["status"] == "PASSED":
+        colour = "var(--ok)"
+    elif summary["status"] == "FAILED":
+        colour = "var(--fail)"
+    else:
+        colour = "#6c757d"
+    return f"""    <div class="card">
+      <div>{title}</div>
+      <div class="metric" style="color: {colour}">{summary['status']}</div>
+      <div>{summary['passed']} / {summary['tests']} passed &middot; {summary['time']:.2f}s</div>
+    </div>"""
+
+
+def history_rows(history: list[dict]) -> str:
+    rows = []
+    for entry in reversed(history[-MAX_HISTORY_ROWS:]):
+        colour = "var(--ok)" if entry["result"] == "PASSED" else "var(--fail)"
+        rows.append(
+            "<tr>"
+            f"<td>{entry['date']}</td>"
+            f"<td>{entry['time']}</td>"
+            f"<td><code>{entry['push_id']}</code></td>"
+            f"<td>{entry.get('run_number', '')}</td>"
+            f"<td>{entry['language']}</td>"
+            f"<td>{entry['tests']}</td>"
+            f"<td>{entry['passed']}</td>"
+            f"<td>{entry['failed']}</td>"
+            f"<td style='color:{colour};font-weight:700'>{entry['result']}</td>"
+            "</tr>"
+        )
+    return "\n".join(rows)
+
+
 def build_dashboard() -> None:
     DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
     report_file = copy_report_html()
 
-    junit = REPORTS_DIR / "pytest-results.xml"
-    results = parse_pytest_junit(junit) if junit.exists() else {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "time": 0.0}
+    python_summary = summarise(parse_junit(REPORTS_DIR / "pytest-results.xml"))
+    go_summary = summarise(parse_junit(REPORTS_DIR / "go-results.xml"))
 
-    passed = results["tests"] - results["failures"] - results["errors"] - results["skipped"]
-    status = "PASSED" if results["failures"] == 0 and results["errors"] == 0 else "FAILED"
+    combined_tests = python_summary["tests"] + go_summary["tests"]
+    combined_passed = python_summary["passed"] + go_summary["passed"]
+    combined_failed = (python_summary["failures"] + python_summary["errors"]
+                       + go_summary["failures"] + go_summary["errors"])
+    combined_skipped = python_summary["skipped"] + go_summary["skipped"]
+    combined_time = python_summary["time"] + go_summary["time"]
+    status = "PASSED" if combined_failed == 0 and combined_tests > 0 else "FAILED"
 
     now = datetime.now(timezone.utc)
+    sha = os.environ.get("GITHUB_SHA", "local")
+    run_number = os.environ.get("GITHUB_RUN_NUMBER", "-")
+    trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
+
+    history = load_history()
+    append_history(history, now, sha, run_number, trigger, "Python", python_summary)
+    append_history(history, now, sha, run_number, trigger, "Go", go_summary)
+    save_history(history)
+    shutil.copy(HISTORY_FILE, DASHBOARD_DIR / "history.json")
+
     metadata = {
         "Repository": os.environ.get("GITHUB_REPOSITORY", "local"),
         "Branch / Ref": os.environ.get("GITHUB_REF_NAME", "unknown"),
-        "Commit SHA": os.environ.get("GITHUB_SHA", "unknown")[:12],
-        "Trigger": os.environ.get("GITHUB_EVENT_NAME", "manual"),
+        "Commit SHA": sha[:12],
+        "Run Number": run_number,
+        "Trigger": trigger,
         "Timestamp (UTC)": now.isoformat(),
-        "Language": "Python",
         "Python Version": os.environ.get("PYTHON_VERSION", "3.12"),
-        "Go Version": "1.22 (comparison service)",
+        "Go Version": os.environ.get("GO_VERSION", "1.22"),
     }
 
     rows = "\n".join(
@@ -89,9 +185,11 @@ def build_dashboard() -> None:
     .card {{ background: var(--card); border-radius: 8px; padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }}
     .metric {{ font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }}
     .status {{ color: {'var(--ok)' if status == 'PASSED' else 'var(--fail)'}; text-transform: uppercase; }}
-    table {{ width: 100%; max-width: 600px; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }}
-    th, td {{ padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #e9ecef; }}
-    th {{ background: #e9ecef; width: 40%; }}
+    table {{ width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 1.5rem; }}
+    .meta-table {{ max-width: 600px; }}
+    th, td {{ padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid #e9ecef; }}
+    thead th {{ background: #e9ecef; }}
+    .meta-table th {{ background: #e9ecef; width: 40%; }}
     a {{ display: inline-block; margin-top: 1rem; }}
   </style>
 </head>
@@ -103,31 +201,46 @@ def build_dashboard() -> None:
       <div>Overall Status</div>
       <div class="metric status">{status}</div>
     </div>
+{language_card("Python Tests", python_summary)}
+{language_card("Go Tests", go_summary)}
     <div class="card">
       <div>Total Tests</div>
-      <div class="metric">{results['tests']}</div>
+      <div class="metric">{combined_tests}</div>
     </div>
     <div class="card">
       <div>Passed</div>
-      <div class="metric" style="color: var(--ok)">{passed}</div>
+      <div class="metric" style="color: var(--ok)">{combined_passed}</div>
     </div>
     <div class="card">
       <div>Failed</div>
-      <div class="metric" style="color: var(--fail)">{results['failures'] + results['errors']}</div>
+      <div class="metric" style="color: var(--fail)">{combined_failed}</div>
     </div>
     <div class="card">
       <div>Skipped</div>
-      <div class="metric">{results['skipped']}</div>
+      <div class="metric">{combined_skipped}</div>
     </div>
     <div class="card">
       <div>Duration</div>
-      <div class="metric">{results['time']:.2f}s</div>
+      <div class="metric">{combined_time:.2f}s</div>
     </div>
   </div>
 
   <h2>Run Metadata</h2>
-  <table>
+  <table class="meta-table">
     {rows}
+  </table>
+
+  <h2>Run History</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Time</th><th>Push ID</th><th>Run #</th>
+        <th>Language</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      {history_rows(history)}
+    </tbody>
   </table>
 
   {f'<a href="{report_file}">View detailed pytest report</a>' if report_file else '<p>Detailed pytest report not available.</p>'}
@@ -140,6 +253,7 @@ def build_dashboard() -> None:
 
     (DASHBOARD_DIR / "index.html").write_text(html, encoding="utf-8")
     print(f"Dashboard generated at {DASHBOARD_DIR / 'index.html'}")
+    print(f"History entries: {len(history)}")
 
 
 if __name__ == "__main__":

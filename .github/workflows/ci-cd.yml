@@ -106,7 +106,16 @@ jobs:
           TEST_POSTGRES_URL: postgres://northwind:northwind@localhost:5432/northwind_deliveries?sslmode=disable
         run: |
           go vet ./...
-          go test -race -cover ./...
+          go install gotest.tools/gotestsum@latest
+          mkdir -p ../reports
+          gotestsum --junitfile ../reports/go-results.xml -- -race -cover ./...
+
+      - name: Upload Go test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-report
+          path: reports/
 
   build:
     name: Build and Push Container Image
@@ -263,7 +272,7 @@ jobs:
   dashboard:
     name: Build Test Dashboard
     runs-on: ubuntu-latest
-    needs: [test, build, smoke-test]
+    needs: [test, test-go, build, smoke-test]
     if: always()
     steps:
       - name: Checkout repository
@@ -275,6 +284,21 @@ jobs:
           name: pytest-report
           path: reports/
 
+      - name: Download Go test report
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: go-report
+          path: reports/
+
+      - name: Restore run history
+        uses: actions/cache/restore@v4
+        with:
+          path: .dashboard-history
+          key: dashboard-history-${{ github.run_id }}
+          restore-keys: |
+            dashboard-history-
+
       - name: Generate dashboard
         run: python scripts/generate_dashboard.py
         env:
@@ -282,7 +306,15 @@ jobs:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
           PYTHON_VERSION: ${{ env.PYTHON_VERSION }}
+          GO_VERSION: "1.22"
+
+      - name: Save run history
+        uses: actions/cache/save@v4
+        with:
+          path: .dashboard-history
+          key: dashboard-history-${{ github.run_id }}
 
       - name: Upload dashboard
         uses: actions/upload-artifact@v4

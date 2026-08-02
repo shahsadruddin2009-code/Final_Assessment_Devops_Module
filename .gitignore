@@ -32,6 +32,10 @@ kubeconfig
 dist/
 build/
 *.tar.gz
+reports/
+dashboard/
+dashboard-download/
+.dashboard-history/
 
 # Editor / OS
 .vscode/
