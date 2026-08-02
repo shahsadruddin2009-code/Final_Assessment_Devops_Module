@@ -75,7 +75,6 @@ ansible/                   Ansible playbook + vault-encrypted AWS/DB credentials
 scripts/                   Python helpers (vault encryption, dashboard generator)
 k8s/                       Kubernetes manifests (app + Postgres) + smoke-test Job
 go/                        Go comparison service with equivalent endpoints + pkg/store
-report/                    Generated technical report (PDF) + architecture diagram
 Dockerfile                 Python container image
 go.Dockerfile              Go container image (distroless)
 docker-compose.yml         Local dev: app + PostgreSQL
@@ -184,20 +183,6 @@ smoke-test Job — waiting for Postgres to be ready before rolling out the app,
 then for the whole rollout to complete. See
 [Data persistence](#data-persistence--postgresql) above for how the app finds
 the database via `DATABASE_URL`.
-
-## Technical report
-
-The CSO7024 written report (architecture, evidence, evaluation, and
-professional-practice reflection) is generated as a PDF with an embedded
-pipeline diagram:
-
-```bash
-python -m pip install reportlab matplotlib
-python scripts/generate_report.py
-```
-
-This writes `report/Technical_Report_Shahzad_Sadruddin_2513806.pdf` and
-`report/architecture-diagram.png`.
 
 ## Deploying this service locally: two things to plan for
 
