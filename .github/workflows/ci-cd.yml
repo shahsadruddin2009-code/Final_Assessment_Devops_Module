@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: shahzad-sadruddin/northwind-delivery
+  IMAGE_NAME: shahsadruddin2009-code/northwind-delivery
   PYTHON_VERSION: "3.12"
 
 jobs:

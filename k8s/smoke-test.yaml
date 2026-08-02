@@ -13,7 +13,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: smoke-test
-          image: ghcr.io/shahzad-sadruddin/northwind-delivery:latest
+          image: ghcr.io/shahsadruddin2009-code/northwind-delivery:latest
           command:
             - python
             - -c

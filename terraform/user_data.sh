@@ -10,7 +10,7 @@ usermod -aG docker ec2-user
 
 # Pull and run the latest Northwind delivery image.
 # In production this tag is supplied by the CI/CD pipeline.
-docker pull "ghcr.io/shahzad-sadruddin/northwind-delivery:latest"
+docker pull "ghcr.io/shahsadruddin2009-code/northwind-delivery:latest"
 
 docker run -d \
   --name northwind-delivery \
@@ -18,4 +18,4 @@ docker run -d \
   -p ${app_port}:${app_port} \
   -e PORT=${app_port} \
   -e DATABASE_URL="${database_url}" \
-  ghcr.io/shahzad-sadruddin/northwind-delivery:latest
+  ghcr.io/shahsadruddin2009-code/northwind-delivery:latest
