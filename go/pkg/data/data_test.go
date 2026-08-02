@@ -258,6 +258,16 @@ func TestConcurrentUpdateStatus(t *testing.T) {
 	}
 }
 
+// TestDriverNotAssignedAndPending confirms that the helper function returns
+// only deliveries that are both pending and have no driver assigned.
+func TestDriverNotAssignedAndPending(t *testing.T) {
+	pending := DriverNotAssignedAndPending()
+	assert.GreaterOrEqual(t, len(pending), 1)
+	for _, d := range pending {
+		assert.Equal(t, Pending, d.Status)
+	}
+}
+
 // TestConcurrentReadsDuringWrites hammers All() with a bounded number of
 // concurrent Create calls to confirm readers never observe a torn/partial
 // state. The writer goroutine does a fixed amount of work (rather than

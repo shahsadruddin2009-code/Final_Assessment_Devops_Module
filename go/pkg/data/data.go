@@ -147,3 +147,17 @@ func clone(d Delivery) Delivery {
 	copy.Tracking = append([]Event(nil), d.Tracking...)
 	return copy
 }
+
+// DriverNotAssignedAndPending returns copies of pending deliveries with no driver assigned.
+func DriverNotAssignedAndPending() []Delivery {
+	storeMutex.RLock()
+	defer storeMutex.RUnlock()
+
+	out := []Delivery{}
+	for _, d := range store {
+		if d.Status == Pending && d.Driver == nil {
+			out = append(out, clone(d))
+		}
+	}
+	return out
+}
