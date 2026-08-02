@@ -18,6 +18,8 @@ venv/
 crash.log
 *.tfvars
 !*.example.tfvars
+*.tfplan
+terraform/.db_password
 
 # Ansible
 *.retry
