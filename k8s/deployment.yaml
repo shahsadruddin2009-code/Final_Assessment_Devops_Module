@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: northwind-delivery
-          image: ghcr.io/shahsadruddin2009-code/northwind-delivery:latest
-          imagePullPolicy: Always
+          image: ${IMAGE_TAG:-ghcr.io/shahsadruddin2009-code/northwind-delivery:latest}
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               name: http
