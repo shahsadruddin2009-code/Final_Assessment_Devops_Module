@@ -11,7 +11,7 @@ terraform {
   backend "s3" {
     bucket         = "northwind-terraform-state-2513806"
     key            = "northwind-delivery/terraform.tfstate"
-    region         = "eu-west-2"
+    region         = "us-east-2"
     encrypt        = true
     dynamodb_table = "northwind-terraform-locks"
   }

@@ -1,5 +1,5 @@
 environment = "dev"
-aws_region  = "eu-west-2"
+aws_region  = "us-east-2"
 key_name    = "your-key-pair-name"
 # allowed_ssh_cidr = "YOUR_IP/32"
 
