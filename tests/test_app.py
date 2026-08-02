@@ -321,7 +321,7 @@ class TestConcurrency:
         # Retry any transient failures once to reduce flakiness under CI load.
         statuses = [
             get(url)[0] if status != 200 else status
-            for status, url in zip(statuses, urls)
+            for status, url in zip(statuses, urls, strict=False)
         ]
         assert statuses == [200] * len(urls)
 
