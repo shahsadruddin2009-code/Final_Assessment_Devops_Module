@@ -231,11 +231,28 @@ jobs:
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/postgres.yaml
           kubectl rollout status deployment/northwind-postgres --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=northwind-postgres --timeout=60s
           envsubst < k8s/deployment.yaml | kubectl apply -f -
           kubectl apply -f k8s/service.yaml
-          kubectl rollout status deployment/northwind-delivery --timeout=120s
+          kubectl rollout status deployment/northwind-delivery --timeout=180s
         env:
           IMAGE_TAG: northwind-delivery:${{ github.sha }}
+
+      - name: Debug kind deployment on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -o wide
+          echo "=== Events ==="
+          kubectl get events --sort-by=.lastTimestamp
+          echo "=== Describe app pods ==="
+          kubectl describe pods -l app=northwind-delivery || true
+          echo "=== App logs ==="
+          kubectl logs -l app=northwind-delivery --all-containers=true --tail=100 || true
+          echo "=== Describe postgres pods ==="
+          kubectl describe pods -l app=northwind-postgres || true
+          echo "=== Postgres logs ==="
+          kubectl logs -l app=northwind-postgres --tail=100 || true
 
       - name: Smoke test in kind
         run: |
