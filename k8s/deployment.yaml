@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northwind-delivery
+  labels:
+    app: northwind-delivery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: northwind-delivery
+  template:
+    metadata:
+      labels:
+        app: northwind-delivery
+    spec:
+      containers:
+        - name: northwind-delivery
+          image: ghcr.io/shahzad-sadruddin/northwind-delivery:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PORT
+              value: "8000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: northwind-db-credentials
+                  key: DATABASE_URL
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

@@ -1,0 +1,16 @@
+services:
+  northwind-delivery:
+    image: ghcr.io/shahzad-sadruddin/northwind-delivery:latest
+    container_name: northwind-delivery
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - DATABASE_URL={{ database_url }}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health') or exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

@@ -1,0 +1,18 @@
+# Ignore compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+northwind-delivery
+
+# Local GOPATH used for module downloads in this workspace's terminals
+.gopath/
+
+# Test / vendor
+vendor/
+*.test
+*.out
+coverage.html
+
+# Local environment
+.env

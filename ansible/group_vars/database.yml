@@ -1,0 +1,15 @@
+# Non-secret RDS connection details. db_host comes from the Terraform output
+# `db_address` after `terraform apply`; nothing here is sensitive.
+db_host: "REPLACE_WITH_TERRAFORM_db_address_OUTPUT"
+db_port: 5432
+db_name: "northwind_deliveries"
+db_username: "northwind"
+
+# Encrypt the real value with: ansible-vault encrypt_string --name 'db_password' <password>
+# then paste the result below, replacing this placeholder.
+db_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          0000000000000000000000000000000000000000000000000000000000000000
+          0000000000000000000000000000000000000000000000000000000000000000
+          0000000000000000000000000000000000000000000000000000000000000000
+          0000000000000000000000000000000000000000000000000000000000000000

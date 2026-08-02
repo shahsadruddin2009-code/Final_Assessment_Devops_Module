@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: northwind-config
+data:
+  service-name: "Northwind Logistics delivery tracking"
+  log-level: "info"

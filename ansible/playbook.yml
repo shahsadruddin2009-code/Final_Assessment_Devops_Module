@@ -1,0 +1,74 @@
+---
+- name: Configure Northwind delivery EC2 host
+  hosts: northwind
+  become: yes
+  vars_files:
+    - group_vars/aws_credentials.yml
+    - group_vars/database.yml
+  vars:
+    database_url: "postgresql+psycopg2://{{ db_username }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
+  tasks:
+    - name: Update system packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_only: yes
+
+    - name: Install Docker
+      ansible.builtin.dnf:
+        name: docker
+        state: present
+
+    - name: Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
+      ansible.builtin.user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Ensure app directory exists
+      ansible.builtin.file:
+        path: /opt/northwind
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: "0755"
+
+    - name: Copy Docker Compose manifest
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: /opt/northwind/docker-compose.yml
+        owner: ec2-user
+        group: ec2-user
+        mode: "0644"
+
+    - name: Deploy the Northwind delivery container
+      ansible.builtin.command:
+        cmd: docker compose -f /opt/northwind/docker-compose.yml up -d --pull always
+      become_user: ec2-user
+      register: compose_output
+      changed_when: "'Started' in compose_output.stdout or 'Pulling' in compose_output.stdout"
+
+    - name: Run smoke tests against the deployed service
+      ansible.builtin.uri:
+        url: "http://localhost:8000/health"
+        status_code: 200
+      retries: 6
+      delay: 5
+
+    - name: Verify deliveries endpoint returns JSON
+      ansible.builtin.uri:
+        url: "http://localhost:8000/deliveries"
+        status_code: 200
+        return_content: yes
+      register: deliveries_response
+
+    - name: Confirm response contains expected seed id
+      ansible.builtin.assert:
+        that:
+          - "'NL-1001' in deliveries_response.content"

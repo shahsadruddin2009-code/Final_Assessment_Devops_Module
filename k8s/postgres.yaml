@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: northwind-db-credentials
+type: Opaque
+stringData:
+  # Replace these before deploying to a shared/production cluster.
+  POSTGRES_USER: northwind
+  POSTGRES_PASSWORD: northwind
+  POSTGRES_DB: northwind_deliveries
+  DATABASE_URL: postgresql+psycopg2://northwind:northwind@northwind-postgres:5432/northwind_deliveries
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: northwind-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: northwind-postgres
+  labels:
+    app: northwind-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: northwind-postgres
+  template:
+    metadata:
+      labels:
+        app: northwind-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: northwind-db-credentials
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "northwind"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "northwind"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: northwind-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: northwind-postgres
+  labels:
+    app: northwind-postgres
+spec:
+  selector:
+    app: northwind-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None

@@ -1,0 +1,10 @@
+# The Northwind delivery-tracking service persists deliveries in a database
+# via SQLAlchemy: SQLite locally/in tests, PostgreSQL in production (set
+# DATABASE_URL to a postgresql:// URL to switch backends).
+SQLAlchemy>=2,<3
+psycopg2-binary>=2,<3
+#
+# Testing dependency for the automated test suite (tests/test_app.py).
+pytest>=8,<9
+pytest-html>=4,<5
+requests>=2,<3

@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: northwind-smoke-test
+  labels:
+    app: northwind-smoke-test
+spec:
+  template:
+    metadata:
+      labels:
+        app: northwind-smoke-test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke-test
+          image: ghcr.io/shahzad-sadruddin/northwind-delivery:latest
+          command:
+            - python
+            - -c
+            - |
+              import json, urllib.request, sys
+              base = "http://northwind-delivery:80"
+              checks = [
+                  (f"{base}/health", {"status": "ok"}),
+              ]
+              for url, expected in checks:
+                  with urllib.request.urlopen(url, timeout=10) as r:
+                      data = json.loads(r.read())
+                      assert data == expected, f"{url}: {data} != {expected}"
+              with urllib.request.urlopen(f"{base}/deliveries") as r:
+                  deliveries = json.loads(r.read())
+                  assert isinstance(deliveries, list) and len(deliveries) == 5
+              with urllib.request.urlopen(f"{base}/deliveries/NL-1001") as r:
+                  delivery = json.loads(r.read())
+                  assert delivery["id"] == "NL-1001"
+              print("Smoke tests passed")
+              sys.exit(0)
