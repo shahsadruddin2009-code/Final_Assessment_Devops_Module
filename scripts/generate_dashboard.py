@@ -252,9 +252,15 @@ def build_dashboard() -> None:
     combined_time = python_summary["time"] + go_summary["time"]
     status = "PASSED" if combined_failed == 0 and combined_tests > 0 else "FAILED"
 
-    sha = os.environ.get("GITHUB_SHA", "local")
-    run_number = os.environ.get("GITHUB_RUN_NUMBER", "-")
+    sha = os.environ.get("GITHUB_SHA")
+    run_number = os.environ.get("GITHUB_RUN_NUMBER")
     trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
+    # Local runs have no GitHub env vars; use a timestamped id so each manual
+    # run accumulates a separate history row instead of overwriting the last one.
+    if not sha:
+        sha = f"local-{now.strftime('%Y%m%dT%H%M%S')}"
+    if not run_number:
+        run_number = now.strftime("%Y%m%d-%H%M%S")
 
     history = load_history()
     append_history(history, now, sha, run_number, trigger, "Python", python_summary)
