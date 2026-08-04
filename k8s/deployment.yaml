@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: northwind-delivery
-          image: 359238619364.dkr.ecr.us-east-2.amazonaws.com/northwind-delivery:latest
+          image: ${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
